@@ -1,26 +1,16 @@
-# Go-Tracker
+# Restvoice
 
-Eine Zeiterfassungs-API für Freiberufler und kleinere Firmen.
+Eine API zur Rechnungserstellung für Freiberufler und kleinere Firmen.
 
 ## Ressourcen
 
-### GET /projects
+### POST /invoices
 ```
-curl http://localhost:8080/projects
+curl -d '{"year": 2018, "month":12, "customerId"}' \
+    -H "Content-Type: application/json" -X POST \
+    http://localhost:8080/invoices
 ```
 
-### POST /projects
-```
-curl -d '{"Name":"Go-Tracker"}' \
-    -H "Authorization: Bearer mytoken123" \
-    -H "Content-Type: application/json" -X POST \
-    http://localhost:8080/projects
-```
+### POST /invoices/bookings
 
-### POST /projects/project_id/bookings
-```
-curl -d '{"Name":"Add MySQL-Repository"}' \
-    -H "Authorization: Bearer mytoken123" \
-    -H "Content-Type: application/json" -X POST \
-    http://localhost:8080/projects/1/activities
-```
+### PUT /invoices/charge/1234
