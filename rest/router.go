@@ -12,10 +12,16 @@ func NewRouter() *mux.Router {
 	return r
 }
 
+func MakeGetInvoicesHandler(usecase foundation.Usecase) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(usecase.Run(r).([]byte))
+	}
+}
+
 func MakeCreateInvoiceHandler(usecase foundation.Usecase) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, _ := ioutil.ReadAll(r.Body)
 		usecase.Run(body)
 	}
 }
-
