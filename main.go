@@ -13,7 +13,7 @@ import (
 
 func main() {
 	invoiceConsumer := rest.NewJSONConsumer(&domain.Invoice{})
-	invoicePresenter := rest.NewJSONPresenter()
+	invoicePresenter := rest.NewJSONInvoicesWithOperationsPresenter()
 	repository := database.NewMySQLRepository()
 	getInvoices := usecase.NewGetInvoices(invoicePresenter, repository)
 	createInvoice := usecase.NewCreateInvoice(invoiceConsumer, repository)
