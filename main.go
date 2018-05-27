@@ -13,8 +13,8 @@ import (
 
 func main() {
 	invoiceConsumer := rest.NewJSONConsumer(&domain.Invoice{})
-	invoicesPresenter := rest.NewJSONInvoiceWithOperationsPresenter()
-	invoicePresenter := rest.NewJSONInvoiceWithOperationsPresenter()
+	invoicesPresenter := rest.NewHALInvoice()
+	invoicePresenter := rest.NewHALInvoice()
 
 	repository := database.NewMySQLRepository()
 	i := domain.NewInvoice("Libri GmbH")
