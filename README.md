@@ -20,9 +20,9 @@ PATCH /invoices/1234 {"status": "archived"}
 
 ## Hypermedia API
 
-POST    /invoice               => created
+POST    /invoice               => open
 
-POST    /invoice/1234/booking  => created
+POST    /invoice/1234/booking  => open
 
 PUT     /charge/1234           => payment expected
 

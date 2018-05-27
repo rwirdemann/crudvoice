@@ -6,12 +6,13 @@ type Position struct {
 
 type Invoice struct {
 	Id        int    `json:"id"`
+	Status    string `json:"status"`
 	Customer  string `json:"customer"`
-	Positions map[int]map[string]Position
+	Positions map[int]map[string]Position `json:"positions"`
 }
 
-func NewInvoice() *Invoice {
-	return &Invoice{Positions: make(map[int]map[string]Position)}
+func NewInvoice(customer string) *Invoice {
+	return &Invoice{Customer: customer, Positions: make(map[int]map[string]Position)}
 }
 
 func (i *Invoice) AddPosition(projectId int, title string, hours float64) {

@@ -6,17 +6,20 @@ import (
 )
 
 type CreateInvoice struct {
-	invoiceConsumer foundation.Consumer
-	repository      Repository
+	consumer   foundation.Consumer
+	presenter  foundation.Presenter
+	repository Repository
 }
 
-func NewCreateInvoice(invoiceConsumer foundation.Consumer, repository Repository) *CreateInvoice {
+func NewCreateInvoice(consumer foundation.Consumer, presenter foundation.Presenter, repository Repository) *CreateInvoice {
 	return &CreateInvoice{
-		repository:      repository,
-		invoiceConsumer: invoiceConsumer}
+		repository: repository,
+		consumer:   consumer,
+		presenter:  presenter}
 }
 
 func (u CreateInvoice) Run(i ...interface{}) interface{} {
-	invoice := domain.NewInvoice()
-	return invoice
+	invoice := u.consumer.Consume(i[0]).(*domain.Invoice)
+	u.repository.Create(invoice)
+	return u.presenter.Present(invoice)
 }

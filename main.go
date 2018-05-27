@@ -13,16 +13,22 @@ import (
 
 func main() {
 	invoiceConsumer := rest.NewJSONConsumer(&domain.Invoice{})
-	invoicePresenter := rest.NewJSONInvoicesWithOperationsPresenter()
-	repository := database.NewMySQLRepository()
-	getInvoices := usecase.NewGetInvoices(invoicePresenter, repository)
-	createInvoice := usecase.NewCreateInvoice(invoiceConsumer, repository)
-	r := mux.NewRouter()
-	r.HandleFunc("/invoices", rest.MakeGetInvoicesHandler(getInvoices)).Methods("GET")
-	r.HandleFunc("/invoices", rest.MakeCreateInvoiceHandler(createInvoice)).Methods("POST")
+	invoicesPresenter := rest.NewJSONInvoiceWithOperationsPresenter()
+	invoicePresenter := rest.NewJSONInvoiceWithOperationsPresenter()
 
-	fmt.Println("GET  http://localhost:8190/invoices")
-	fmt.Println("POST http://localhost:8190/invoices")
+	repository := database.NewMySQLRepository()
+	i := domain.NewInvoice("Libri GmbH")
+	repository.Create(i)
+
+	getInvoices := usecase.NewGetInvoices(invoicesPresenter, repository)
+	createInvoice := usecase.NewCreateInvoice(invoiceConsumer, invoicePresenter, repository)
+
+	r := mux.NewRouter()
+	r.HandleFunc("/invoice", rest.MakeGetInvoicesHandler(getInvoices)).Methods("GET")
+	r.HandleFunc("/invoice", rest.MakeCreateInvoiceHandler(createInvoice)).Methods("POST")
+
+	fmt.Println("GET  http://localhost:8190/invoice")
+	fmt.Println("POST http://localhost:8190/invoice")
 
 	http.ListenAndServe(":8190", cors.AllowAll().Handler(r))
 }

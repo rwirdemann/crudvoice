@@ -21,7 +21,8 @@ func MakeGetInvoicesHandler(usecase foundation.Usecase) http.HandlerFunc {
 
 func MakeCreateInvoiceHandler(usecase foundation.Usecase) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		body, _ := ioutil.ReadAll(r.Body)
-		usecase.Run(body)
+		w.Write(usecase.Run(body).([]byte))
 	}
 }
