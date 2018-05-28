@@ -24,19 +24,19 @@ type Link struct {
 	Href   string `json:"href"`
 }
 
-type OperationsDecorator struct {
+type LinksDecorator struct {
 	*domain.Invoice
 	Links map[string]Link `json:"_links"`
 }
 
-func decorate(i *domain.Invoice) OperationsDecorator {
+func decorate(i *domain.Invoice) LinksDecorator {
 	var links = make(map[string]Link)
 	switch i.Status {
 	case "open":
 		links["self"] = Link{"GET", fmt.Sprintf("/invoice/%d", i.Id)}
-		links["book"] = Link{"GET", fmt.Sprintf("/invoice/%d", i.Id)}
+		links["book"] = Link{"POST", fmt.Sprintf("/invoice/%d", i.Id)}
 	}
-	return OperationsDecorator{Invoice: i, Links: links}
+	return LinksDecorator{Invoice: i, Links: links}
 }
 
 func (j HALInvoice) Present(i interface{}) interface{} {
@@ -44,7 +44,7 @@ func (j HALInvoice) Present(i interface{}) interface{} {
 
 	switch t := i.(type) {
 	case []*domain.Invoice:
-		var result []OperationsDecorator
+		var result []LinksDecorator
 		for _, i := range t {
 			result = append(result, decorate(i))
 		}
