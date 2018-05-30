@@ -13,6 +13,7 @@ import (
 
 func main() {
 	invoiceConsumer := rest.NewJSONConsumer(&domain.Invoice{})
+	pathVariableConsumer := rest.NewPathVariableConsumer("id")
 	invoicesPresenter := rest.NewHALInvoice()
 	invoicePresenter := rest.NewHALInvoice()
 
@@ -21,13 +22,16 @@ func main() {
 	repository.Create(i)
 
 	getInvoices := usecase.NewGetInvoices(invoicesPresenter, repository)
+	getInvoice := usecase.NewGetInvoice(pathVariableConsumer, invoicesPresenter, repository)
 	createInvoice := usecase.NewCreateInvoice(invoiceConsumer, invoicePresenter, repository)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/invoice", rest.MakeGetInvoicesHandler(getInvoices)).Methods("GET")
+	r.HandleFunc("/invoice/{id}", rest.MakeGetInvoiceHandler(getInvoice)).Methods("GET")
 	r.HandleFunc("/invoice", rest.MakeCreateInvoiceHandler(createInvoice)).Methods("POST")
 
 	fmt.Println("GET  http://localhost:8190/invoice")
+	fmt.Println("GET  http://localhost:8190/invoice/1")
 	fmt.Println("POST http://localhost:8190/invoice")
 
 	http.ListenAndServe(":8190", cors.AllowAll().Handler(r))

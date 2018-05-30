@@ -3,31 +3,39 @@ package database
 import "github.com/rwirdemann/restvoice/domain"
 
 type MySQLRepository struct {
-	invoices []*domain.Invoice
+	invoices map[int]*domain.Invoice
 }
 
 func NewMySQLRepository() *MySQLRepository {
 	r := MySQLRepository{}
+	r.invoices = make(map[int]*domain.Invoice)
 	return &r
 }
 
 func (r *MySQLRepository) Invoices() []*domain.Invoice {
-	return r.invoices
+	var invoices []*domain.Invoice
+	for _, invoice := range r.invoices {
+		invoices = append(invoices, invoice)
+	}
+	return invoices
+}
+
+func (r *MySQLRepository) GetInvoice(id int) *domain.Invoice {
+	return r.invoices[id]
 }
 
 func (r *MySQLRepository) Create(invoice *domain.Invoice) {
 	invoice.Id = r.nextInvoiceId()
 	invoice.Status = "open"
-	r.invoices = append(r.invoices, invoice)
+	r.invoices[invoice.Id] = invoice
 }
 
 func (r *MySQLRepository) nextInvoiceId() int {
 	nextId := 1
 	for _, i := range r.invoices {
-			if i.Id >= nextId {
-				nextId = i.Id + 1
+		if i.Id >= nextId {
+			nextId = i.Id + 1
 		}
 	}
 	return nextId
 }
-
