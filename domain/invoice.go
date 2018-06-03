@@ -5,9 +5,11 @@ type Position struct {
 }
 
 type Invoice struct {
-	Id        int    `json:"id"`
-	Status    string `json:"status"`
-	Customer  string `json:"customer"`
+	Id        int                         `json:"id"`
+	Status    string                      `json:"status"`
+	Customer  string                      `json:"customer"`
+	Year      int                         `json:"year"`
+	Month     int                         `json:"month"`
 	Positions map[int]map[string]Position `json:"positions"`
 }
 

@@ -8,14 +8,14 @@ import (
 	"log"
 )
 
-type RVInvoice struct {
+type RVInvoicePresenter struct {
 }
 
-func NewRVInvoice() RVInvoice {
-	return RVInvoice{}
+func NewRVInvoicePresenter() RVInvoicePresenter {
+	return RVInvoicePresenter{}
 }
 
-func (j RVInvoice) present(i interface{}) interface{} {
+func (j RVInvoicePresenter) present(i interface{}) interface{} {
 	invoice := i.(*domain.Invoice)
 	b, _ := json.Marshal(decorate(invoice))
 	return b
@@ -47,7 +47,7 @@ func decorate(i *domain.Invoice) LinksDecorator {
 func translate(operation domain.Operation, invoice *domain.Invoice) (Link, error) {
 	switch operation.Name {
 	case "book":
-		return Link{"POST", fmt.Sprintf("/invoice/%d", invoice.Id)}, nil
+		return Link{"POST", fmt.Sprintf("/book/%d", invoice.Id)}, nil
 	case "charge":
 		return Link{"PUT", fmt.Sprintf("/charge/%d", invoice.Id)}, nil
 	case "payment":
@@ -59,7 +59,7 @@ func translate(operation domain.Operation, invoice *domain.Invoice) (Link, error
 	}
 }
 
-func (j RVInvoice) Present(i interface{}) interface{} {
+func (j RVInvoicePresenter) Present(i interface{}) interface{} {
 	var b []byte
 
 	switch t := i.(type) {

@@ -14,8 +14,8 @@ import (
 func main() {
 	invoiceConsumer := rest.NewJSONConsumer(&domain.Invoice{})
 	pathVariableConsumer := rest.NewPathVariableConsumer("id")
-	invoicesPresenter := rest.NewRVInvoice()
-	invoicePresenter := rest.NewRVInvoice()
+	invoicesPresenter := rest.NewRVInvoicePresenter()
+	invoicePresenter := rest.NewRVInvoicePresenter()
 
 	repository := database.NewMySQLRepository()
 	i := domain.NewInvoice("Libri GmbH")
