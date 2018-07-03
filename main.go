@@ -10,6 +10,8 @@ import (
 	"github.com/rwirdemann/crudvoice/invoice"
 	"strconv"
 	"github.com/rwirdemann/crudvoice/booking"
+	"time"
+	"bytes"
 )
 
 func main() {
@@ -98,6 +100,10 @@ func updateInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 	json.Unmarshal(body, &i)
 	i.Id, _ = strconv.Atoi(mux.Vars(request)["invoiceId"])
 	i.CustomerId, _ = strconv.Atoi(mux.Vars(request)["customerId"])
+
+	if i.Status == "payment expected" {
+		i.Prepare()
+	}
 	invoiceRepository.Update(i)
 
 	// Write response
@@ -107,7 +113,15 @@ func updateInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 func readInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 	id, _ := strconv.Atoi(mux.Vars(request)["invoiceId"])
 	i, _ := invoiceRepository.FindById(id)
-	b, _ := json.Marshal(i)
-	writer.Header().Set("Content-Type", "application/json")
-	writer.Write(b)
+	accept := request.Header.Get("Accept")
+	switch accept {
+	case "application/pdf":
+		http.ServeContent(writer, request, "invoice.pdf", time.Now(), bytes.NewReader(i.ToPdf()))
+	case "application/json":
+		b, _ := json.Marshal(i)
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Write(b)
+	default:
+		writer.WriteHeader(http.StatusNotAcceptable)
+	}
 }
