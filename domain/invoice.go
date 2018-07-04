@@ -11,7 +11,7 @@ type Invoice struct {
 	Bookings   []Booking
 }
 
-func (i *Invoice) Prepare() {
+func (i *Invoice) Close() {
 }
 
 func (i Invoice) ToPdf() []byte {

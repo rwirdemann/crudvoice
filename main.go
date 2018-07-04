@@ -12,12 +12,22 @@ import (
 	"github.com/rwirdemann/crudvoice/booking"
 	"time"
 	"bytes"
+	"os"
+	"log"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	r := mux.NewRouter()
-	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices", createInvoiceHandler).Methods("POST")
-	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings", createBookingHandler).Methods("POST")
+	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices",
+		basicAuth(createInvoiceHandler)).Methods("POST")
+	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings",
+		basicAuth(createBookingHandler)).Methods("POST")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings/{bookingId:[0-9]+}", deleteBookingHandler).Methods("DELETE")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}", updateInvoiceHandler).Methods("PUT")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}", readInvoiceHandler).Methods("GET")
@@ -102,7 +112,7 @@ func updateInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 	i.CustomerId, _ = strconv.Atoi(mux.Vars(request)["customerId"])
 
 	if i.Status == "payment expected" {
-		i.Prepare()
+		i.Close()
 	}
 	invoiceRepository.Update(i)
 
@@ -123,5 +133,18 @@ func readInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 		writer.Write(b)
 	default:
 		writer.WriteHeader(http.StatusNotAcceptable)
+	}
+}
+
+func basicAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if username, password, ok := r.BasicAuth(); ok {
+			if username == os.Getenv("USERNAME") && password == os.Getenv("PASSWORD") {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"restvoice.org\"")
+		w.WriteHeader(http.StatusUnauthorized)
 	}
 }
