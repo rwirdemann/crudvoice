@@ -15,7 +15,13 @@ import (
 	"os"
 	"log"
 	"github.com/joho/godotenv"
+	"strings"
+	"math/rand"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func main() {
 	err := godotenv.Load()
@@ -25,7 +31,7 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices",
-		basicAuth(createInvoiceHandler)).Methods("POST")
+		digestAuth(createInvoiceHandler)).Methods("POST")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings",
 		basicAuth(createBookingHandler)).Methods("POST")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings/{bookingId:[0-9]+}", deleteBookingHandler).Methods("DELETE")
@@ -144,7 +150,38 @@ func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"restvoice.org\"")
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"example@restvoice.org\"")
 		w.WriteHeader(http.StatusUnauthorized)
 	}
+}
+
+func digestAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s := r.Header.Get("Authorization")
+		if strings.HasPrefix(s, "Digest") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := fmt.Sprintf("Digest realm=\"example@restvoice.org\" qop=\"auth\" nonce=\"%s\" opaque=\"%s\"", nonce(), opaque())
+		w.Header().Set("WWW-Authenticate", auth)
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+func nonce() string {
+	return "UAZs1dp3wX5BtXEpoCXKO2lHhap564rX"
+}
+
+func opaque() string {
+	return "xU2Z4FyqwKUBdwTMRYdGtAG1ppaT0bNm"
 }
