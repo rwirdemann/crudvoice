@@ -17,6 +17,9 @@ import (
 	"github.com/joho/godotenv"
 	"strings"
 	"math/rand"
+	"crypto/md5"
+	"io"
+	"encoding/hex"
 )
 
 func init() {
@@ -33,7 +36,7 @@ func main() {
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices",
 		digestAuth(createInvoiceHandler)).Methods("POST")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings",
-		basicAuth(createBookingHandler)).Methods("POST")
+		digestAuth(createBookingHandler)).Methods("POST")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings/{bookingId:[0-9]+}", deleteBookingHandler).Methods("DELETE")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}", updateInvoiceHandler).Methods("PUT")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}", readInvoiceHandler).Methods("GET")
@@ -155,27 +158,50 @@ func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+var password = "time"
+
 func digestAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		s := r.Header.Get("Authorization")
-		if strings.HasPrefix(s, "Digest") {
-			next.ServeHTTP(w, r)
-			return
+		authorization := r.Header.Get("Authorization")
+		if strings.HasPrefix(authorization, "Digest") {
+			authFields := digestParts(authorization)
+			step1 := hash(authFields["username"] + ":" + authFields["realm"] + ":" + password)
+			step2 := hash(r.Method + ":" + authFields["uri"])
+			step3 := hash(step1 + ":" +
+				authFields["nonce"] + ":" +
+				authFields["nc"] + ":" +
+				authFields["cnonce"] + ":" +
+				authFields["qop"] + ":" + step2)
+			if step3 == authFields["response"] {
+				next.ServeHTTP(w, r)
+				return
+			}
 		}
-		auth := fmt.Sprintf("Digest realm=\"example@restvoice.org\" qop=\"auth\" nonce=\"%s\" opaque=\"%s\"", nonce(), opaque())
+		auth := fmt.Sprintf("Digest realm=\"%s\" qop=\"auth\" nonce=\"%s\" opaque=\"%s\"", realm(), nonce(), opaque())
 		w.Header().Set("WWW-Authenticate", auth)
 		w.WriteHeader(http.StatusUnauthorized)
 	}
 }
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+func hash(s string) string {
+	h := md5.New()
+	io.WriteString(h, s)
+	return hex.EncodeToString(h.Sum(nil))
+}
 
-func randStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+func digestParts(authorization string) map[string]string {
+	result := map[string]string{}
+	wantedHeaders := []string{"username", "nonce", "realm", "qop", "uri", "nc", "response", "opaque", "cnonce"}
+	requestHeaders := strings.Split(authorization, ",")
+	for _, r := range requestHeaders {
+		for _, w := range wantedHeaders {
+			if strings.Contains(r, " "+w) {
+				v := strings.Split(r, "=")[1]
+				result[w] = strings.Trim(v, `"`)
+			}
+		}
 	}
-	return string(b)
+	return result
 }
 
 func nonce() string {
@@ -184,4 +210,8 @@ func nonce() string {
 
 func opaque() string {
 	return "xU2Z4FyqwKUBdwTMRYdGtAG1ppaT0bNm"
+}
+
+func realm() string {
+	return "example@restvoice.org"
 }
