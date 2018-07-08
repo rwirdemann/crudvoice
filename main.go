@@ -23,10 +23,12 @@ import (
 	"crypto/rsa"
 	"github.com/dgrijalva/jwt-go"
 	"regexp"
+	"github.com/rwirdemann/crudvoice/project"
 )
 
 const validJWT = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.EkN-DOsnsuRjRO6BxXemmJDm3HbxrbRzXglbN2S4sOkopdU4IsDxTI8jO19W_A4K8ZPJijNLis4EZsHeY559a4DFOd50_OqgHGuERTqYZyuhtF39yxJPAjUESwxk2J5k_4zM3O-vtd1Ghyo4IbqKKSy6J9mTniYJPenn5-HIirE"
 const publicKeyFilePath = "valid_sample_key.pub"
+
 var publicKey *rsa.PublicKey
 
 func init() {
@@ -52,6 +54,10 @@ func main() {
 		jwtAuth(createInvoiceHandler)).Methods("POST")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings",
 		digestAuth(createBookingHandler)).Methods("POST")
+
+	r.HandleFunc("/customers/{customerId:[0-9]+}/projects",
+		jwtAuth(assertAdmin(createProjectHandler))).Methods("POST")
+
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings/{bookingId:[0-9]+}", deleteBookingHandler).Methods("DELETE")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}", updateInvoiceHandler).Methods("PUT")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}", readInvoiceHandler).Methods("GET")
@@ -61,6 +67,7 @@ func main() {
 
 var invoiceRepository = invoice.NewRepository()
 var bookingRepository = booking.NewRepository()
+var projectRepository = project.NewRepository()
 
 func createInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 	// Read invoice data from request body
@@ -175,14 +182,47 @@ func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func jwtAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		println("JWT Auth")
 		token := extractJwtFromHeader(r.Header)
 		if verifyJWT(token) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"example@restvoice.org\"")
+		w.Header().Set("WWW-Authenticate", "Bearer realm=\"example@restvoice.org\"")
 		w.WriteHeader(http.StatusUnauthorized)
 	}
+}
+
+func assertAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		println("Assert Admin")
+		token := extractJwtFromHeader(r.Header)
+		if isAdmin(token) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("WWW-Authenticate", "Bearer realm=\"example@restvoice.org\"")
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+}
+
+func isAdmin(token string) bool {
+	t, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return publicKey, nil
+	})
+
+	if err != nil {
+		if claims, ok := t.Claims.(jwt.MapClaims); ok {
+			if claims["admin"] != nil {
+				return claims["admin"].(bool)
+			}
+		}
+	}
+
+	return false
 }
 
 func extractJwtFromHeader(header http.Header) (jwt string) {
@@ -267,4 +307,31 @@ func verifyJWT(token string) bool {
 	})
 
 	return err == nil && t.Valid
+}
+
+func createProjectHandler(writer http.ResponseWriter, request *http.Request) {
+	// Read invoice data from request body
+	body, err := ioutil.ReadAll(request.Body)
+	if err != nil {
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Create project and marshal it to JSON
+	var p domain.Project
+	json.Unmarshal(body, &p)
+
+	p.CustomerId, _ = strconv.Atoi(mux.Vars(request)["customerId"])
+	created := projectRepository.Create(p)
+	b, err := json.Marshal(created)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Write response
+	writer.Header().Set("Location", fmt.Sprintf("%s/%d", request.URL.String(), created.Id))
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusCreated)
+	writer.Write(b)
 }
