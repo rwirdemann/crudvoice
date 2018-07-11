@@ -24,10 +24,13 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"regexp"
 	"github.com/rwirdemann/crudvoice/project"
+	"github.com/rwirdemann/crudvoice/customer"
 )
 
 const validJWT = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.EkN-DOsnsuRjRO6BxXemmJDm3HbxrbRzXglbN2S4sOkopdU4IsDxTI8jO19W_A4K8ZPJijNLis4EZsHeY559a4DFOd50_OqgHGuERTqYZyuhtF39yxJPAjUESwxk2J5k_4zM3O-vtd1Ghyo4IbqKKSy6J9mTniYJPenn5-HIirE"
-const publicKeyFilePath = "valid_sample_key.pub"
+
+//const publicKeyFilePath = "valid_sample_key.pub"
+const publicKeyFilePath = "keycloak_key.pub"
 
 var publicKey *rsa.PublicKey
 
@@ -51,7 +54,7 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices",
-		jwtAuth(createInvoiceHandler)).Methods("POST")
+		jwtAuth(assertCustomer(createInvoiceHandler))).Methods("POST")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings",
 		digestAuth(createBookingHandler)).Methods("POST")
 
@@ -68,6 +71,7 @@ func main() {
 var invoiceRepository = invoice.NewRepository()
 var bookingRepository = booking.NewRepository()
 var projectRepository = project.NewRepository()
+var customerRepository = customer.NewRepository()
 
 func createInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 	// Read invoice data from request body
@@ -182,7 +186,6 @@ func basicAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func jwtAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		println("JWT Auth")
 		token := extractJwtFromHeader(r.Header)
 		if verifyJWT(token) {
 			next.ServeHTTP(w, r)
@@ -193,9 +196,27 @@ func jwtAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func assertCustomer(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := extractJwtFromHeader(r.Header)
+		customerId, _ := strconv.Atoi(mux.Vars(r)["customerId"])
+		if ownsCustomer(token, customerId) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("WWW-Authenticate", "Bearer realm=\"example@restvoice.org\"")
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+}
+
+func ownsCustomer(token string, customerId int) bool {
+	userId := claim(token, "sub")
+	customer := customerRepository.ById(customerId)
+	return customer.UserId == userId
+}
+
 func assertAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		println("Assert Admin")
 		token := extractJwtFromHeader(r.Header)
 		if isAdmin(token) {
 			next.ServeHTTP(w, r)
@@ -206,6 +227,25 @@ func assertAdmin(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func claim(token string, key string) string {
+	t, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return publicKey, nil
+	})
+
+	if err == nil {
+		if claims, ok := t.Claims.(jwt.MapClaims); ok {
+			if claims[key] != nil {
+				return claims[key].(string)
+			}
+		}
+	}
+
+	return ""
+}
+
 func isAdmin(token string) bool {
 	t, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
@@ -214,7 +254,7 @@ func isAdmin(token string) bool {
 		return publicKey, nil
 	})
 
-	if err != nil {
+	if err == nil {
 		if claims, ok := t.Claims.(jwt.MapClaims); ok {
 			if claims["admin"] != nil {
 				return claims["admin"].(bool)
