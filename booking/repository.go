@@ -16,6 +16,16 @@ func (r *Repository) Create(booking domain.Booking) domain.Booking {
 	return booking
 }
 
+func (r *Repository) ByInvoiceId(invoiceId int) []domain.Booking {
+	var bookings []domain.Booking
+	for _, b := range r.bookings {
+		if b.InvoiceId == invoiceId {
+			bookings = append(bookings, b)
+		}
+	}
+	return bookings
+}
+
 func (r *Repository) Delete(id int) {
 	delete(r.bookings, id)
 }

@@ -15,6 +15,7 @@ func NewRepository() *Repository {
 func (r *Repository) Create(invoice domain.Invoice) domain.Invoice {
 	invoice.Id = r.nextId()
 	invoice.Status = "open"
+	invoice.Bookings = []domain.Booking{}
 	r.invoices[invoice.Id] = invoice
 	return invoice
 }

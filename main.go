@@ -25,6 +25,8 @@ import (
 	"regexp"
 	"github.com/rwirdemann/crudvoice/project"
 	"github.com/rwirdemann/crudvoice/customer"
+	"github.com/rwirdemann/crudvoice/activity"
+	"github.com/rwirdemann/crudvoice/rate"
 )
 
 const validJWT = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.EkN-DOsnsuRjRO6BxXemmJDm3HbxrbRzXglbN2S4sOkopdU4IsDxTI8jO19W_A4K8ZPJijNLis4EZsHeY559a4DFOd50_OqgHGuERTqYZyuhtF39yxJPAjUESwxk2J5k_4zM3O-vtd1Ghyo4IbqKKSy6J9mTniYJPenn5-HIirE"
@@ -53,25 +55,46 @@ func main() {
 	}
 
 	r := mux.NewRouter()
-	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices",
-		jwtAuth(assertCustomer(createInvoiceHandler))).Methods("POST")
-	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings",
-		digestAuth(createBookingHandler)).Methods("POST")
+	r.HandleFunc("/customers", readCustomersHandler).Methods("GET")
+	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices", createInvoiceHandler).Methods("POST")
+	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings", createBookingHandler).Methods("POST")
 
-	r.HandleFunc("/customers/{customerId:[0-9]+}/projects",
-		jwtAuth(assertAdmin(createProjectHandler))).Methods("POST")
+	r.HandleFunc("/customers/{customerId:[0-9]+}/projects", createProjectHandler).Methods("POST")
+	r.HandleFunc("/customers/{customerId:[0-9]+}/projects", readProjectsHandler).Methods("GET")
 
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}/bookings/{bookingId:[0-9]+}", deleteBookingHandler).Methods("DELETE")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}", updateInvoiceHandler).Methods("PUT")
 	r.HandleFunc("/customers/{customerId:[0-9]+}/invoices/{invoiceId:[0-9]+}", readInvoiceHandler).Methods("GET")
+	r.HandleFunc("/activities", readActivitiesHandler).Methods("GET")
 
 	http.ListenAndServe(":8080", r)
 }
 
+func readActivitiesHandler(writer http.ResponseWriter, request *http.Request) {
+	b, _ := json.Marshal(activityRepository.All())
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write(b)
+}
+
+func readProjectsHandler(writer http.ResponseWriter, request *http.Request) {
+	customerId, _ := strconv.Atoi(mux.Vars(request)["customerId"])
+	b, _ := json.Marshal(projectRepository.ByCustomer(customerId))
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write(b)
+}
+
+func readCustomersHandler(writer http.ResponseWriter, _ *http.Request) {
+	b, _ := json.Marshal(customerRepository.All())
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write(b)
+}
+
 var invoiceRepository = invoice.NewRepository()
+var activityRepository = activity.NewRepository()
 var bookingRepository = booking.NewRepository()
 var projectRepository = project.NewRepository()
 var customerRepository = customer.NewRepository()
+var rateRepository = rate.NewRepository()
 
 func createInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 	// Read invoice data from request body
@@ -146,9 +169,17 @@ func updateInvoiceHandler(writer http.ResponseWriter, request *http.Request) {
 	i.Id, _ = strconv.Atoi(mux.Vars(request)["invoiceId"])
 	i.CustomerId, _ = strconv.Atoi(mux.Vars(request)["customerId"])
 
+	// Aggregate positions
 	if i.Status == "payment expected" {
-		i.Close()
+		bookings := bookingRepository.ByInvoiceId(i.Id)
+		for _, b := range bookings {
+			activity := activityRepository.ById(b.ActivityId)
+			rate := rateRepository.ByProjectIdAndActivityId(b.ProjectId, b.ActivityId)
+
+			i.AddPosition(b.ProjectId, activity.Name, b.Hours, rate.Price)
+		}
 	}
+
 	invoiceRepository.Update(i)
 
 	// Write response

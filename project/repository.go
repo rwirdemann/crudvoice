@@ -8,7 +8,9 @@ type Repository struct {
 
 func NewRepository() *Repository {
 	r := &Repository{projects: make(map[int]domain.Project)}
-	r.Create(domain.Project{Id: 1, Name: "Picue"})
+	r.Create(domain.Project{Name: "Instantfoo.com", CustomerId: 1})
+	r.Create(domain.Project{Name: "Wo bleibt Kalle", CustomerId: 1})
+
 	return r
 }
 
@@ -31,4 +33,15 @@ func (r *Repository) nextId() int {
 		}
 	}
 	return nextId
+}
+
+func (r *Repository) ByCustomer(customerId int) []domain.Project {
+	var projects []domain.Project
+	for _, p := range r.projects {
+		if p.CustomerId == customerId {
+			projects = append(projects, p)
+		}
+	}
+	return projects
+
 }
